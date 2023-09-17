@@ -1,0 +1,37 @@
+Source: https://view.officeapps.live.com/op/view.aspx?src=https%3A%2F%2Fdownload.microsoft.com%2Fdownload%2Fd%2F9%2F4%2Fd948f981-926e-40fa-a026-5bfcf076d9b9%2FTechnical%2520Case%2520Study-Backup%2520VLDB%2520Over%2520Network_Final.docx&wdOrigin=BROWSELINK
+
+The following example creates a backup sequence number based on the Coordinated Universal Time (UTC) date.
+-- use GETUTCDATE() as backup sequence number
+DECLARE @FileName AS nvarchar(4000) = '\\BAK01\backup\MyVLDB' + 
+       CONVERT(nvarchar(32), GETUTCDATE(), 112 )+ '.bak';
+BACKUP DATABASE MyVLDB 
+	TO DISK = @FileName
+	WITH CHECKSUM, INIT;
+
+The following example creates a backup sequence number that increments by one each time a backup is run.
+-- use a sequential number as backup sequence number
+-- the following code must be executed only once per database to create the 
+-- required table to store the sequence number
+USE MyVLDB;
+GO
+CREATE SCHEMA DBBackup;
+GO
+CREATE TABLE DBBackup.Sequence(
+	Number int  NOT NULL,
+	ID     int  NOT NULL,
+	CONSTRAINT PK_Seq PRIMARY KEY CLUSTERED (ID ASC)
+);
+ALTER TABLE DBBackup.Sequence WITH CHECK ADD CONSTRAINT CK_Seq CHECK (ID=1);
+ALTER TABLE DBBackup.Sequence CHECK CONSTRAINT CK_Seq;
+INSERT INTO DBBackup.Sequence (Number) VALUES (1,1);
+
+-- this is the corresponding backup command
+DECLARE @SeqNumber AS int;
+UPDATE MyVLDB.DBBackup.Sequence SET @SeqNumber= Number= Number+ 1 WHERE ID=1;
+DECLARE @FileName AS nvarchar(4000) = '\\BAK01\backup\MyVLDB' 
+	RIGHT('0000000' + CAST(@SeqNumber AS NVARCHAR(8)), 8) + '.bak';
+BACKUP DATABASE MyVLDB 
+	TO DISK = @FileName
+	WITH CHECKSUM, INIT;
+
+Although this second method is more complex, it is also more flexible. The other example in this white paper will build on it.
